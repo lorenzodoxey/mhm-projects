@@ -1,7 +1,68 @@
 // Enhanced Configuration with Video Editing Workflow
 const CONFIG = {
-  password: 'mhm2024', // Change this password
+  password: 'mhm2024', // Change this password (backward compatibility)
   storageKey: 'mhm-tracker-data-v2', // Updated storage key to avoid conflicts
+  
+  // Role-based access control
+  roles: {
+    admin: {
+      id: 'admin',
+      name: 'Administrator',
+      passwordPrefix: 'admin-',
+      permissions: {
+        viewAll: true,
+        editAll: true,
+        deleteProjects: true,
+        manageLists: true,
+        accessTrash: true,
+        importExport: true,
+        dragDrop: true
+      }
+    },
+    editor: {
+      id: 'editor',
+      name: 'Editor',
+      passwordPrefix: 'editor-',
+      permissions: {
+        viewAll: false, // only assigned projects
+        editAll: false, // only assigned projects
+        deleteProjects: false, // can only move to trash
+        manageLists: false,
+        accessTrash: false,
+        importExport: false,
+        dragDrop: true
+      }
+    },
+    client: {
+      id: 'client',
+      name: 'Client',
+      passwordPrefix: 'client-',
+      permissions: {
+        viewAll: false, // only own client projects
+        editAll: false,
+        deleteProjects: false,
+        manageLists: false,
+        accessTrash: false,
+        importExport: false,
+        dragDrop: false
+      }
+    },
+    viewer: {
+      id: 'viewer',
+      name: 'Viewer',
+      passwordPrefix: 'viewer-',
+      permissions: {
+        viewAll: true,
+        editAll: false,
+        deleteProjects: false,
+        manageLists: false,
+        accessTrash: false,
+        importExport: false,
+        dragDrop: false
+      }
+    }
+  },
+  
   // Updated stages for video editing workflow
   stages: [
     { id: 'uploaded', name: 'Uploaded', color: '#00ffa3' },
@@ -26,6 +87,9 @@ const CONFIG = {
 // Enhanced Application State with better error handling
 let appState = {
   isLoggedIn: false,
+  userRole: null, // Current user's role (admin, editor, client, viewer)
+  userClient: null, // For client users, stores the client name
+  currentUser: null, // Stores current user info (for editors)
   projects: [],
   trash: [],
   editors: [...CONFIG.defaultEditors],
@@ -138,6 +202,120 @@ const utils = {
 // Auto-save every 30 seconds
 setInterval(utils.autoSave, 30000);
 
+// Permission and Role Management Utilities
+const roleUtils = {
+  // Parse password to determine role and extract client name if applicable
+  parsePassword: (password) => {
+    // Check backward compatibility with existing password
+    if (password === CONFIG.password) {
+      return { role: 'admin', client: null, user: null };
+    }
+    
+    // Check role-based passwords
+    for (const [roleId, roleConfig] of Object.entries(CONFIG.roles)) {
+      if (password.startsWith(roleConfig.passwordPrefix)) {
+        const suffix = password.substring(roleConfig.passwordPrefix.length);
+        
+        if (roleId === 'client') {
+          // For client role, extract client name
+          return { role: roleId, client: suffix, user: null };
+        } else if (roleId === 'editor') {
+          // For editor role, the suffix should be the standard password
+          if (suffix === 'mhm2024') {
+            return { role: roleId, client: null, user: null };
+          }
+        } else {
+          // For admin and viewer, check if suffix matches expected password
+          if (suffix === 'mhm2024') {
+            return { role: roleId, client: null, user: null };
+          }
+        }
+      }
+    }
+    
+    return null; // Invalid password
+  },
+  
+  // Check if current user has a specific permission
+  hasPermission: (permission) => {
+    if (!appState.userRole || !CONFIG.roles[appState.userRole]) {
+      return false;
+    }
+    return CONFIG.roles[appState.userRole].permissions[permission] || false;
+  },
+  
+  // Filter projects based on user role and permissions
+  filterProjectsForUser: (projects) => {
+    if (!appState.userRole) return [];
+    
+    const role = CONFIG.roles[appState.userRole];
+    if (!role) return [];
+    
+    switch (appState.userRole) {
+      case 'admin':
+        return projects; // Admin sees all projects
+        
+      case 'editor':
+        // Editors see only projects assigned to them
+        // For now, we'll show all since we don't have specific editor assignment
+        // In a real implementation, we'd filter by editor field
+        return projects;
+        
+      case 'client':
+        // Clients see only their projects
+        return projects.filter(project => 
+          project.client && project.client.toLowerCase() === appState.userClient?.toLowerCase()
+        );
+        
+      case 'viewer':
+        return projects; // Viewer sees all projects (read-only)
+        
+      default:
+        return [];
+    }
+  },
+  
+  // Check if current user can edit a specific project
+  canEditProject: (project) => {
+    if (!appState.userRole) return false;
+    
+    const role = CONFIG.roles[appState.userRole];
+    if (!role) return false;
+    
+    // Admin can edit all
+    if (appState.userRole === 'admin') {
+      return true;
+    }
+    
+    // Editor can edit assigned projects (for now, all since we don't have specific assignment)
+    if (appState.userRole === 'editor') {
+      return role.permissions.editAll || true; // Simplified for now
+    }
+    
+    // Client and viewer cannot edit
+    return false;
+  },
+  
+  // Get role display name and info
+  getRoleInfo: () => {
+    if (!appState.userRole) return null;
+    
+    const role = CONFIG.roles[appState.userRole];
+    if (!role) return null;
+    
+    let displayName = role.name;
+    if (appState.userRole === 'client' && appState.userClient) {
+      displayName += ` (${appState.userClient})`;
+    }
+    
+    return {
+      id: role.id,
+      name: displayName,
+      permissions: role.permissions
+    };
+  }
+};
+
 // Fixed Authentication Functions
 function checkPassword() {
   const passwordInput = document.getElementById('passwordInput');
@@ -146,13 +324,29 @@ function checkPassword() {
   
   console.log('Checking password:', password); // Debug log
   
-  if (password === CONFIG.password) {
+  // Parse password to determine role
+  const authResult = roleUtils.parsePassword(password);
+  
+  if (authResult) {
+    // Set user role and client info
+    appState.userRole = authResult.role;
+    appState.userClient = authResult.client;
+    appState.currentUser = authResult.user;
     appState.isLoggedIn = true;
+    
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     errorEl.classList.add('hidden');
+    
     initializeApp();
-    console.log('Login successful');
+    
+    // Show role-specific welcome message
+    const roleInfo = roleUtils.getRoleInfo();
+    if (roleInfo) {
+      showNotification(`Welcome! Logged in as ${roleInfo.name}`, 'info');
+    }
+    
+    console.log('Login successful as:', appState.userRole, appState.userClient);
   } else {
     errorEl.classList.remove('hidden');
     errorEl.textContent = 'Incorrect password. Please try again.';
@@ -217,6 +411,8 @@ function initializeApp() {
     }
     
     setupEventListeners();
+    updateRoleIndicator();
+    updateUIForRole();
     renderBoard();
     utils.updateAllDropdowns();
     updateStats();
@@ -307,6 +503,59 @@ function createSampleData() {
   
   appState.projects = sampleProjects;
   utils.saveToStorage();
+}
+
+// Role and UI Management Functions
+function updateRoleIndicator() {
+  try {
+    const roleIndicator = document.getElementById('roleIndicator');
+    if (!roleIndicator) return;
+    
+    const roleInfo = roleUtils.getRoleInfo();
+    if (roleInfo) {
+      roleIndicator.textContent = roleInfo.name;
+      roleIndicator.className = `role-indicator ${roleInfo.id}`;
+      roleIndicator.classList.remove('hidden');
+    } else {
+      roleIndicator.classList.add('hidden');
+    }
+  } catch (error) {
+    console.error('Error updating role indicator:', error);
+  }
+}
+
+function updateUIForRole() {
+  try {
+    if (!appState.userRole) return;
+    
+    const permissions = CONFIG.roles[appState.userRole]?.permissions;
+    if (!permissions) return;
+    
+    // Hide/show action buttons based on permissions
+    const importBtn = document.querySelector('button[onclick="importData()"]');
+    const exportBtn = document.querySelector('button[onclick="exportData()"]');
+    const manageBtn = document.querySelector('button[onclick="openManageModal()"]');
+    const trashBtn = document.querySelector('button[onclick="openTrash()"]');
+    
+    if (importBtn) importBtn.style.display = permissions.importExport ? '' : 'none';
+    if (exportBtn) exportBtn.style.display = permissions.importExport ? '' : 'none';
+    if (manageBtn) manageBtn.style.display = permissions.manageLists ? '' : 'none';
+    if (trashBtn) trashBtn.style.display = permissions.accessTrash ? '' : 'none';
+    
+    // Hide add project buttons for read-only roles
+    const addProjectBtns = document.querySelectorAll('button[onclick*="addNewProject"]');
+    addProjectBtns.forEach(btn => {
+      if (permissions.editAll || appState.userRole === 'editor') {
+        btn.style.display = '';
+      } else {
+        btn.style.display = 'none';
+      }
+    });
+    
+    console.log('UI updated for role:', appState.userRole, permissions);
+  } catch (error) {
+    console.error('Error updating UI for role:', error);
+  }
 }
 
 function setupEventListeners() {
@@ -838,8 +1087,11 @@ function renderBoard() {
     const platformFilter = document.getElementById('platformFilter')?.value || '';
     const channelFilter = document.getElementById('channelFilter')?.value || '';
     
-    // Filter projects
-    const filteredProjects = appState.projects.filter(project => {
+    // Apply role-based filtering first
+    const roleFilteredProjects = roleUtils.filterProjectsForUser(appState.projects);
+    
+    // Filter projects based on search and filters
+    const filteredProjects = roleFilteredProjects.filter(project => {
       const matchesSearch = !searchTerm || 
         project.title.toLowerCase().includes(searchTerm) ||
         (project.client || '').toLowerCase().includes(searchTerm);
@@ -856,6 +1108,10 @@ function renderBoard() {
       return acc;
     }, {});
     
+    // Check permissions for UI elements
+    const canEdit = roleUtils.hasPermission('editAll') || appState.userRole === 'editor';
+    const addButtonStyle = canEdit ? '' : 'style="display: none;"';
+    
     // Render columns
     board.innerHTML = CONFIG.stages.map(stage => `
       <div class="column" style="border-top: 3px solid ${stage.color};">
@@ -865,7 +1121,7 @@ function renderBoard() {
         </div>
         <div class="drop-zone" data-stage="${stage.id}" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
           ${projectsByStage[stage.id].map(renderProjectCard).join('')}
-          <button class="btn secondary" onclick="addNewProject('${stage.id}')" style="margin-top: auto;">
+          <button class="btn secondary" onclick="addNewProject('${stage.id}')" ${addButtonStyle} style="margin-top: auto;">
             + Add Project
           </button>
         </div>
@@ -889,10 +1145,21 @@ function renderProjectCard(project) {
     const completedTasks = (project.checklist || []).filter(item => item.done).length;
     const totalTasks = (project.checklist || []).length;
     
+    // Check permissions for card actions
+    const canEdit = roleUtils.canEditProject(project);
+    const canDelete = roleUtils.hasPermission('deleteProjects');
+    const canDuplicate = roleUtils.hasPermission('editAll') || appState.userRole === 'editor';
+    const canDrag = roleUtils.hasPermission('dragDrop');
+    
+    const dragAttributes = canDrag ? 
+      `draggable="true" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"` : 
+      `draggable="false"`;
+    
+    const quickCompleteAction = canEdit ? `ondblclick="quickComplete('${project.id}')"` : '';
+    
     return `
-      <div class="project-card ${project.color || 'teal'}" draggable="true" data-id="${project.id}" 
-           ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
-           ondblclick="quickComplete('${project.id}')">
+      <div class="project-card ${project.color || 'teal'}" data-id="${project.id}" 
+           ${dragAttributes} ${quickCompleteAction}>
         <div class="card-header">
           <h4 class="card-title">${escapeHtml(project.title)}</h4>
           <span class="priority ${project.priority.toLowerCase()}">${project.priority.charAt(0)}</span>
@@ -910,9 +1177,9 @@ function renderProjectCard(project) {
         </div>
         ${totalTasks > 0 ? `<div class="checklist-progress">${completedTasks}/${totalTasks} tasks completed</div>` : ''}
         <div class="card-actions">
-          <button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>
-          <button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>
-          <button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>
+          ${canEdit ? `<button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>` : `<button class="icon-btn" onclick="editProject('${project.id}')" title="View">👁️</button>`}
+          ${canDuplicate ? `<button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>` : ''}
+          ${canDelete ? `<button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>` : ''}
         </div>
       </div>
     `;
