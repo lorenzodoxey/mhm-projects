@@ -1,7 +1,7 @@
 // Enhanced Configuration with Video Editing Workflow
 const CONFIG = {
-  password: 'mhm2024', // Change this password
-  storageKey: 'mhm-tracker-data-v2', // Updated storage key to avoid conflicts
+  password: 'mhm2024', // Change this password (backwards compatibility - admin access)
+  storageKey: 'mhm-tracker-data-v3', // Updated storage key for role-based version
   // Updated stages for video editing workflow
   stages: [
     { id: 'uploaded', name: 'Uploaded', color: '#00ffa3' },
@@ -20,17 +20,56 @@ const CONFIG = {
     { value: 'navy', name: 'Navy' },
     { value: 'purple', name: 'Purple' },
     { value: 'green', name: 'Green' }
+  ],
+  // Role-based access control system
+  roles: {
+    admin: {
+      name: 'Administrator',
+      permissions: ['all'], // Full access to everything
+      description: 'Full access to everything, can manage users, see all projects, manage all data'
+    },
+    editor: {
+      name: 'Editor',
+      permissions: ['view_assigned_projects', 'edit_assigned_projects', 'view_basic_lists'],
+      description: 'Can see and edit projects assigned to them, limited access to certain features'
+    },
+    client: {
+      name: 'Client',
+      permissions: ['view_assigned_projects', 'view_assigned_channels'],
+      description: 'Read-only access to specific projects/channels assigned to them'
+    },
+    viewer: {
+      name: 'Viewer',
+      permissions: ['view_basic_info'],
+      description: 'Read-only access to basic project information'
+    }
+  },
+  // Default users (admin password provides backwards compatibility)
+  defaultUsers: [
+    {
+      id: 'admin',
+      username: 'Admin',
+      password: 'mhm2024',
+      role: 'admin',
+      assignedEditors: [],
+      assignedChannels: [],
+      assignedClients: []
+    }
   ]
 };
 
 // Enhanced Application State with better error handling
 let appState = {
   isLoggedIn: false,
+  currentUser: null, // Current logged-in user object
+  userRole: null, // Current user role
+  userPermissions: [], // Current user permissions
   projects: [],
   trash: [],
   editors: [...CONFIG.defaultEditors],
   platforms: [...CONFIG.defaultPlatforms],
   channels: [...CONFIG.defaultChannels],
+  users: [...CONFIG.defaultUsers], // User management
   editingProject: null,
   currentChecklist: [],
   lastSaveTime: null
@@ -65,8 +104,9 @@ const utils = {
         editors: appState.editors,
         platforms: appState.platforms,
         channels: appState.channels,
+        users: appState.users, // Include users in saved data
         lastSaved: Date.now(),
-        version: '2.0'
+        version: '3.0' // Updated version for role-based system
       };
       localStorage.setItem(CONFIG.storageKey, JSON.stringify(dataToSave));
       appState.lastSaveTime = Date.now();
@@ -89,6 +129,7 @@ const utils = {
         appState.editors = Array.isArray(data.editors) ? data.editors : [...CONFIG.defaultEditors];
         appState.platforms = Array.isArray(data.platforms) ? data.platforms : [...CONFIG.defaultPlatforms];
         appState.channels = Array.isArray(data.channels) ? data.channels : [...CONFIG.defaultChannels];
+        appState.users = Array.isArray(data.users) ? data.users : [...CONFIG.defaultUsers];
         
         // Validate and migrate existing projects to new stages if needed
         appState.projects.forEach(project => {
@@ -138,6 +179,73 @@ const utils = {
 // Auto-save every 30 seconds
 setInterval(utils.autoSave, 30000);
 
+// Role-Based Access Control Functions
+const rbac = {
+  // Check if current user has a specific permission
+  hasPermission: (permission) => {
+    if (!appState.currentUser || !appState.userPermissions) return false;
+    if (appState.userPermissions.includes('all')) return true;
+    return appState.userPermissions.includes(permission);
+  },
+
+  // Check if current user can view a specific project
+  canViewProject: (project) => {
+    if (rbac.hasPermission('all')) return true;
+    if (!rbac.hasPermission('view_assigned_projects')) return false;
+    
+    const user = appState.currentUser;
+    if (!user) return false;
+
+    // Editor role: can view projects assigned to them
+    if (appState.userRole === 'editor') {
+      return user.assignedEditors.includes(project.editor);
+    }
+    
+    // Client role: can view projects from assigned channels or clients
+    if (appState.userRole === 'client') {
+      return user.assignedChannels.includes(project.channel) || 
+             user.assignedClients.includes(project.client);
+    }
+    
+    // Viewer role: can view all basic info
+    if (appState.userRole === 'viewer') {
+      return rbac.hasPermission('view_basic_info');
+    }
+    
+    return false;
+  },
+
+  // Check if current user can edit a specific project
+  canEditProject: (project) => {
+    if (rbac.hasPermission('all')) return true;
+    if (!rbac.hasPermission('edit_assigned_projects')) return false;
+    
+    const user = appState.currentUser;
+    if (!user || appState.userRole !== 'editor') return false;
+    
+    return user.assignedEditors.includes(project.editor);
+  },
+
+  // Get filtered projects based on user permissions
+  getFilteredProjects: () => {
+    if (rbac.hasPermission('all')) return appState.projects;
+    
+    return appState.projects.filter(project => rbac.canViewProject(project));
+  },
+
+  // Check if current user can access management features
+  canAccessManagement: () => {
+    return rbac.hasPermission('all');
+  },
+
+  // Set user role and permissions
+  setUserRole: (user) => {
+    appState.currentUser = user;
+    appState.userRole = user.role;
+    appState.userPermissions = CONFIG.roles[user.role]?.permissions || [];
+  }
+};
+
 // Fixed Authentication Functions
 function checkPassword() {
   const passwordInput = document.getElementById('passwordInput');
@@ -146,13 +254,27 @@ function checkPassword() {
   
   console.log('Checking password:', password); // Debug log
   
+  // Check if password matches any user (including backwards compatibility)
+  let matchedUser = null;
+  
+  // First check backwards compatibility with admin password
   if (password === CONFIG.password) {
+    matchedUser = appState.users.find(u => u.role === 'admin') || CONFIG.defaultUsers[0];
+  } else {
+    // Check against all users
+    matchedUser = appState.users.find(u => u.password === password);
+  }
+  
+  if (matchedUser) {
     appState.isLoggedIn = true;
+    rbac.setUserRole(matchedUser);
+    
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     errorEl.classList.add('hidden');
+    
     initializeApp();
-    console.log('Login successful');
+    console.log('Login successful as', matchedUser.role, '-', matchedUser.username);
   } else {
     errorEl.classList.remove('hidden');
     errorEl.textContent = 'Incorrect password. Please try again.';
@@ -175,6 +297,9 @@ function logout() {
   if (confirm('Are you sure you want to logout? Any unsaved changes will be saved automatically.')) {
     utils.saveToStorage(); // Save before logout
     appState.isLoggedIn = false;
+    appState.currentUser = null;
+    appState.userRole = null;
+    appState.userPermissions = [];
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('mainApp').classList.add('hidden');
     document.getElementById('passwordInput').value = '';
@@ -206,6 +331,36 @@ function showNotification(message, type = 'info') {
   }, 3000);
 }
 
+// Update UI based on user role and permissions
+function updateUIForRole() {
+  const userRoleIndicator = document.getElementById('userRoleIndicator');
+  if (userRoleIndicator && appState.currentUser) {
+    const roleName = CONFIG.roles[appState.userRole]?.name || appState.userRole;
+    userRoleIndicator.textContent = `${appState.currentUser.username} (${roleName})`;
+    userRoleIndicator.className = `user-role role-${appState.userRole}`;
+  }
+  
+  // Hide/show management features based on permissions
+  const manageBtn = document.querySelector('button[onclick="openManageModal()"]');
+  const exportBtn = document.querySelector('button[onclick="exportData()"]');
+  const importBtn = document.querySelector('button[onclick="importData()"]');
+  const trashBtn = document.querySelector('button[onclick="openTrash()"]');
+  const addProjectBtns = document.querySelectorAll('button[onclick="addNewProject()"], button[onclick*="addNewProject"]');
+  
+  const canManage = rbac.canAccessManagement();
+  const canEdit = rbac.hasPermission('all') || rbac.hasPermission('edit_assigned_projects');
+  
+  if (manageBtn) manageBtn.style.display = canManage ? 'inline-block' : 'none';
+  if (exportBtn) exportBtn.style.display = canManage ? 'inline-block' : 'none';
+  if (importBtn) importBtn.style.display = canManage ? 'inline-block' : 'none';
+  if (trashBtn) trashBtn.style.display = canManage ? 'inline-block' : 'none';
+  
+  // Hide add project buttons for non-editors
+  addProjectBtns.forEach(btn => {
+    if (btn) btn.style.display = canEdit ? 'inline-block' : 'none';
+  });
+}
+
 // App Initialization
 function initializeApp() {
   try {
@@ -217,14 +372,16 @@ function initializeApp() {
     }
     
     setupEventListeners();
+    updateUIForRole(); // Update UI based on user role
     renderBoard();
     utils.updateAllDropdowns();
     updateStats();
     
     // Show welcome message
     setTimeout(() => {
-      const total = appState.projects.length;
-      showNotification(`Welcome! Loaded ${total} projects.`, 'success');
+      const total = rbac.getFilteredProjects().length;
+      const roleName = CONFIG.roles[appState.userRole]?.name || 'User';
+      showNotification(`Welcome ${roleName}! Loaded ${total} projects.`, 'success');
     }, 1000);
     
     console.log('App initialized successfully');
@@ -838,8 +995,11 @@ function renderBoard() {
     const platformFilter = document.getElementById('platformFilter')?.value || '';
     const channelFilter = document.getElementById('channelFilter')?.value || '';
     
-    // Filter projects
-    const filteredProjects = appState.projects.filter(project => {
+    // Get role-based filtered projects first
+    const accessibleProjects = rbac.getFilteredProjects();
+    
+    // Then apply UI filters
+    const filteredProjects = accessibleProjects.filter(project => {
       const matchesSearch = !searchTerm || 
         project.title.toLowerCase().includes(searchTerm) ||
         (project.client || '').toLowerCase().includes(searchTerm);
@@ -910,9 +1070,9 @@ function renderProjectCard(project) {
         </div>
         ${totalTasks > 0 ? `<div class="checklist-progress">${completedTasks}/${totalTasks} tasks completed</div>` : ''}
         <div class="card-actions">
-          <button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>
-          <button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>
-          <button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>
+          ${rbac.canEditProject(project) ? `<button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>` : ''}
+          ${rbac.hasPermission('all') ? `<button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>` : ''}
+          ${rbac.hasPermission('all') ? `<button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>` : ''}
         </div>
       </div>
     `;
@@ -948,11 +1108,12 @@ function updateFilters() {
 
 function updateStats() {
   try {
-    const total = appState.projects.length;
-    const completed = appState.projects.filter(p => p.stage === 'posted').length;
+    const accessibleProjects = rbac.getFilteredProjects();
+    const total = accessibleProjects.length;
+    const completed = accessibleProjects.filter(p => p.stage === 'posted').length;
     
     // Calculate average cycle time
-    const completedProjects = appState.projects.filter(p => 
+    const completedProjects = accessibleProjects.filter(p => 
       p.stage === 'posted' && p.timeline && p.timeline.uploaded && p.timeline.posted
     );
     
@@ -1116,6 +1277,35 @@ function openManageModal() {
 
 function renderManagementLists() {
   try {
+    // Show/hide user management section based on permissions
+    const usersSection = document.getElementById('usersSection');
+    if (usersSection) {
+      usersSection.style.display = rbac.hasPermission('all') ? 'block' : 'none';
+    }
+    
+    // Render users list (admin only)
+    const usersContainer = document.getElementById('manageUsers');
+    if (usersContainer && rbac.hasPermission('all')) {
+      usersContainer.innerHTML = `
+        <div class="manage-list-wrapper">
+          <div class="manage-items-container">
+            ${appState.users.map((user, index) => `
+              <div class="manage-item user-item" data-index="${index}">
+                <div class="user-info">
+                  <span class="manage-item-text">${escapeHtml(user.username)}</span>
+                  <span class="user-role role-${user.role}">${CONFIG.roles[user.role]?.name || user.role}</span>
+                </div>
+                ${user.id !== 'admin' ? `<button class="btn-remove" onclick="removeUser('${user.id}')" title="Remove ${escapeHtml(user.username)}">×</button>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          <div class="manage-add">
+            <button class="btn primary" onclick="openAddUserDialog()">Add User</button>
+          </div>
+        </div>
+      `;
+    }
+    
     // Render editors list
     const editorsContainer = document.getElementById('manageEditors');
     if (editorsContainer) {
@@ -1279,6 +1469,69 @@ function removeChannel(channel) {
     renderManagementLists();
     utils.updateAllDropdowns();
     showNotification(`Channel "${channel}" removed successfully`, 'success');
+  }
+}
+
+// User management functions (admin only)
+function openAddUserDialog() {
+  if (!rbac.hasPermission('all')) {
+    showNotification('Access denied: Admin permissions required', 'error');
+    return;
+  }
+  
+  const username = prompt('Enter username:');
+  if (!username) return;
+  
+  const password = prompt('Enter password:');
+  if (!password) return;
+  
+  const role = prompt('Enter role (admin, editor, client, viewer):');
+  if (!role || !CONFIG.roles[role]) {
+    showNotification('Invalid role. Valid roles: admin, editor, client, viewer', 'error');
+    return;
+  }
+  
+  // Check if user already exists
+  if (appState.users.find(u => u.username === username)) {
+    showNotification('Username already exists', 'error');
+    return;
+  }
+  
+  const newUser = {
+    id: utils.generateId(),
+    username: username.trim(),
+    password: password.trim(),
+    role: role.trim(),
+    assignedEditors: [],
+    assignedChannels: [],
+    assignedClients: []
+  };
+  
+  appState.users.push(newUser);
+  utils.saveToStorage();
+  renderManagementLists();
+  showNotification(`User "${username}" added successfully`, 'success');
+}
+
+function removeUser(userId) {
+  if (!rbac.hasPermission('all')) {
+    showNotification('Access denied: Admin permissions required', 'error');
+    return;
+  }
+  
+  const user = appState.users.find(u => u.id === userId);
+  if (!user) return;
+  
+  if (user.id === 'admin') {
+    showNotification('Cannot remove admin user', 'error');
+    return;
+  }
+  
+  if (confirm(`Remove user "${user.username}"?\n\nThis will permanently delete their access.`)) {
+    appState.users = appState.users.filter(u => u.id !== userId);
+    utils.saveToStorage();
+    renderManagementLists();
+    showNotification(`User "${user.username}" removed successfully`, 'success');
   }
 }
 

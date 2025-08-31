@@ -1290,3 +1290,98 @@ header {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Role-Based Access Control Styles */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-role {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: 600;
+  border: 1px solid;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.role-admin {
+  color: var(--success);
+  border-color: var(--success);
+  background: rgba(0, 255, 163, 0.1);
+}
+
+.role-editor {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.role-client {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: rgba(255, 179, 71, 0.1);
+}
+
+.role-viewer {
+  color: var(--muted);
+  border-color: var(--muted);
+  background: rgba(124, 156, 191, 0.1);
+}
+
+.user-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 8px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-info .manage-item-text {
+  font-weight: 600;
+}
+
+.user-info .user-role {
+  font-size: 0.75em;
+  padding: 2px 8px;
+}
+
+/* Header adjustments for role indicator */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  background: rgba(22, 22, 41, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+header .user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .user-info {
+    justify-content: center;
+  }
+}
