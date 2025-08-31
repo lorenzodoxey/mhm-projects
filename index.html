@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MHM — Project Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Simple password protection -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h2>MHM Project Tracker</h2>
+      <input type="password" id="passwordInput" placeholder="Enter password" />
+      <button onclick="checkPassword()">Login</button>
+      <div id="loginError" class="error hidden">Incorrect password</div>
+    </div>
+  </div>
+
+  <!-- Main app (hidden until login) -->
+  <div id="mainApp" class="app hidden">
+    <header>
+      <div class="title">
+        <h1>MHM — Project Tracker</h1>
+        <div class="subtitle">Professional video production workflow • Drag & drop • Auto-saves</div>
+      </div>
+      <button class="btn secondary" onclick="logout()">Logout</button>
+    </header>
+
+    <!-- Quick Actions -->
+    <div class="panel">
+      <div class="actions">
+        <button class="btn secondary" onclick="importData()">Import</button>
+        <button class="btn secondary" onclick="exportData()">Export</button>
+        <button class="btn secondary" onclick="openManageModal()">Manage</button>
+        <button class="btn warning" onclick="openTrash()">
+          Trash <span id="trashCount" class="badge">0</span>
+        </button>
+        <div class="spacer"></div>
+        <button class="btn primary" onclick="addNewProject()">+ Add Project</button>
+      </div>
+    </div>
+
+    <!-- Enhanced Filters -->
+    <div class="panel">
+      <div class="filters">
+        <div class="pill">
+          <input id="searchInput" type="text" placeholder="Search projects..." />
+        </div>
+        <div class="pill">
+          <span>Editor</span>
+          <select id="editorFilter"><option value="">All</option></select>
+        </div>
+        <div class="pill">
+          <span>Platform</span>
+          <select id="platformFilter"><option value="">All</option></select>
+        </div>
+        <div class="pill">
+          <span>Channel</span>
+          <select id="channelFilter"><option value="">All</option></select>
+        </div>
+        <div class="spacer"></div>
+      </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="panel">
+      <div class="board" id="kanbanBoard"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="stats">
+        <div class="stat">Total: <strong id="totalCount">0</strong></div>
+        <div class="stat">Completed: <strong id="completedCount">0</strong></div>
+        <div class="stat">Avg Days: <strong id="avgDays">-</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enhanced Project Editor Modal -->
+  <div id="projectModal" class="modal hidden">
+    <div class="modal-content large">
+      <div class="modal-header">
+        <h3 id="modalTitle">New Project</h3>
+        <button class="modal-close-btn" onclick="closeModal()" title="Close">×</button>
+      </div>
+      <form id="projectForm">
+        <!-- Basic Project Info -->
+        <div class="section">
+          <h4>Project Details</h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Title *</label>
+              <input type="text" id="projectTitle" required placeholder="e.g., Client X – Spring Promo" />
+            </div>
+            <div class="form-group">
+              <label>Client</label>
+              <input type="text" id="projectClient" placeholder="Client name" />
+            </div>
+            <div class="form-group">
+              <label>Editor</label>
+              <select id="projectEditor"></select>
+            </div>
+            <div class="form-group">
+              <label>Platform</label>
+              <select id="projectPlatform"></select>
+            </div>
+            <div class="form-group">
+              <label>Channel</label>
+              <select id="projectChannel"></select>
+            </div>
+            <div class="form-group">
+              <label>Priority</label>
+              <select id="projectPriority">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="section">
+          <h4>Timeline</h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Due Date</label>
+              <input type="date" id="projectDue" />
+            </div>
+            <div class="form-group">
+              <label>Upload Date</label>
+              <input type="date" id="projectUpload" />
+            </div>
+            <div class="form-group">
+              <label>Stage</label>
+              <select id="projectStage"></select>
+            </div>
+            <div class="form-group">
+              <label>Card Color</label>
+              <select id="projectColor"></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Production Details -->
+        <div class="section">
+          <h4>Production</h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Links (Drive/Brief/Assets)</label>
+              <input type="url" id="projectLinks" placeholder="https://drive.google.com/..." />
+            </div>
+            <div class="form-group">
+              <label>Raw Footage Link</label>
+              <input type="url" id="projectFootage" placeholder="Link to raw footage" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Creative Brief -->
+        <div class="section">
+          <h4>Creative Brief</h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Hook</label>
+              <textarea id="projectHook" rows="2" placeholder="Opening hook or angle"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Ending / CTA</label>
+              <textarea id="projectEnding" rows="2" placeholder="How it ends; call-to-action"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Script</label>
+              <textarea id="projectScript" rows="3" placeholder="Full script text"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Voiceover Text</label>
+              <textarea id="projectVoiceover" rows="3" placeholder="Voiceover narration"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Key Shots (one per line)</label>
+              <textarea id="projectKeyShots" rows="3" placeholder="Product hero&#10;Close-up hands&#10;Reaction"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Locations (one per line)</label>
+              <textarea id="projectLocations" rows="3" placeholder="Studio A&#10;Downtown crosswalk&#10;Client HQ lobby"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Music Suggestions</label>
+              <textarea id="projectMusic" rows="2" placeholder="Track names or links"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Edit Notes</label>
+              <textarea id="projectEditNotes" rows="2" placeholder="Specific editing instructions, effects, transitions"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- General Notes -->
+        <div class="section">
+          <div class="form-group">
+            <label>General Notes</label>
+            <textarea id="projectNotes" rows="3" placeholder="Creative notes, deliverables, client feedback, etc."></textarea>
+          </div>
+        </div>
+
+        <!-- Checklist -->
+        <div class="section">
+          <h4>Checklist</h4>
+          <div class="checklist-add">
+            <input type="text" id="newChecklistItem" placeholder="Add checklist item" />
+            <button type="button" class="btn secondary" onclick="addChecklistItem()">Add</button>
+          </div>
+          <div id="checklistContainer" class="checklist-container"></div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="deleteBtn" class="btn warning" onclick="deleteProject(appState.editingProject?.id)" style="display: none;">Delete Project</button>
+          <button type="button" id="duplicateBtn" class="btn secondary" onclick="duplicateProject(appState.editingProject?.id); closeModal();" style="display: none;">Duplicate</button>
+          <button type="button" class="btn secondary" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn primary">Save Project</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Management Modal -->
+  <div id="manageModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Manage Lists</h3>
+        <button class="modal-close-btn" onclick="closeModal()" title="Close">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="manage-section">
+          <h4>Editors</h4>
+          <div id="manageEditors" class="manage-list"></div>
+        </div>
+        
+        <div class="manage-section">
+          <h4>Platforms</h4>
+          <div id="managePlatforms" class="manage-list"></div>
+        </div>
+        
+        <div class="manage-section">
+          <h4>Channels</h4>
+          <div id="manageChannels" class="manage-list"></div>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trash Modal -->
+  <div id="trashModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Trash</h3>
+        <button class="modal-close-btn" onclick="closeModal()" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="trashList"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn warning" onclick="emptyTrash()">Empty Trash</button>
+        <button class="btn secondary" onclick="closeTrash()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for imports -->
+  <input type="file" id="fileInput" accept=".json" style="display: none;" />
+  
+  <!-- Notification container -->
+  <div id="notification" class="notification hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
