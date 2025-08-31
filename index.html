@@ -25,7 +25,10 @@
         <h1>MHM — Project Tracker</h1>
         <div class="subtitle">Professional video production workflow • Drag & drop • Auto-saves</div>
       </div>
-      <button class="btn secondary" onclick="logout()">Logout</button>
+      <div class="header-actions">
+        <button class="btn secondary" id="adminPanelBtn" onclick="openAdminPanel()" style="display: none;">Admin Panel</button>
+        <button class="btn secondary" onclick="logout()">Logout</button>
+      </div>
     </header>
 
     <!-- Quick Actions -->
@@ -271,6 +274,78 @@
       <div class="modal-actions">
         <button class="btn warning" onclick="emptyTrash()">Empty Trash</button>
         <button class="btn secondary" onclick="closeTrash()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Panel Modal -->
+  <div id="adminModal" class="modal hidden">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h3>Admin Panel - Role Management</h3>
+        <button class="modal-close-btn" onclick="closeModal()" title="Close">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Existing Roles Section -->
+        <div class="admin-section">
+          <h4>Built-in User Roles</h4>
+          <div id="builtinRolesList" class="roles-list"></div>
+        </div>
+        
+        <!-- Custom Roles Section -->
+        <div class="admin-section">
+          <h4>Custom Roles</h4>
+          <div id="customRolesList" class="roles-list"></div>
+        </div>
+        
+        <!-- Create New Role Section -->
+        <div class="admin-section">
+          <h4>Create New Role</h4>
+          <div class="role-form">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Role Name</label>
+                <input type="text" id="newRoleName" placeholder="Enter role name" maxlength="50" />
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="newRolePassword" placeholder="Enter password" maxlength="50" />
+              </div>
+            </div>
+            
+            <div class="permissions-section">
+              <h5>Permissions</h5>
+              <div class="permissions-grid">
+                <label><input type="checkbox" id="newRoleCanEdit" checked> Can Edit Projects</label>
+                <label><input type="checkbox" id="newRoleCanDelete" checked> Can Delete Projects</label>
+                <label><input type="checkbox" id="newRoleCanCreate" checked> Can Create Projects</label>
+                <label><input type="checkbox" id="newRoleViewOnly"> View Only Access</label>
+              </div>
+            </div>
+            
+            <div class="access-section">
+              <h5>Channel Access (Select allowed channels)</h5>
+              <div id="channelCheckboxes" class="access-checkboxes"></div>
+            </div>
+            
+            <div class="access-section">
+              <h5>Platform Access (Select allowed platforms)</h5>
+              <div id="platformCheckboxes" class="access-checkboxes"></div>
+            </div>
+            
+            <div class="access-section">
+              <h5>Editor Access (Select allowed editors)</h5>
+              <div id="editorCheckboxes" class="access-checkboxes"></div>
+            </div>
+            
+            <button class="btn primary" onclick="createCustomRole()">Create Role</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeModal()">Close</button>
       </div>
     </div>
   </div>

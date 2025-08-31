@@ -1,7 +1,9 @@
-// Enhanced Configuration with Video Editing Workflow
+// Enhanced Configuration with Multi-User Channel-Based Access Control
 const CONFIG = {
-  password: 'mhm2024', // Change this password
-  storageKey: 'mhm-tracker-data-v2', // Updated storage key to avoid conflicts
+  password: 'mhm2024', // Legacy password for migration
+  storageKey: 'mhm-tracker-data-v3', // Updated storage key for multi-user system
+  customRolesKey: 'mhm-custom-roles-v1', // Storage key for custom roles
+  
   // Updated stages for video editing workflow
   stages: [
     { id: 'uploaded', name: 'Uploaded', color: '#00ffa3' },
@@ -11,6 +13,67 @@ const CONFIG = {
     { id: 'final', name: 'Final', color: '#7c3aed' },
     { id: 'posted', name: 'Posted', color: '#10b981' }
   ],
+  
+  // Role-based user definitions with channel permissions (PRIMARY FOCUS)
+  roles: {
+    admin: {
+      username: 'Admin',
+      password: 'admin2024',
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        canCreate: true,
+        canManageRoles: true,
+        isViewOnly: false
+      },
+      channels: ['Main Brand', 'Clips Channel', 'Client Channel'], // Access to ALL channels
+      platforms: ['Instagram', 'TikTok', 'YouTube', 'Facebook', 'LinkedIn'],
+      editors: ['Mia', 'Leo', 'Kai']
+    },
+    mia: {
+      username: 'Mia',
+      password: 'mia2024',
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        canCreate: true,
+        canManageRoles: false,
+        isViewOnly: false
+      },
+      channels: ['Main Brand', 'Clips Channel'], // Limited channel access
+      platforms: ['Instagram', 'TikTok', 'YouTube'], // Limited platform access
+      editors: ['Mia'] // Can only assign to self
+    },
+    leo: {
+      username: 'Leo',
+      password: 'leo2024',
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        canCreate: true,
+        canManageRoles: false,
+        isViewOnly: false
+      },
+      channels: ['Client Channel', 'Main Brand'], // Limited channel access
+      platforms: ['YouTube', 'Facebook', 'LinkedIn'], // Limited platform access
+      editors: ['Leo'] // Can only assign to self
+    },
+    client: {
+      username: 'Client',
+      password: 'client2024',
+      permissions: {
+        canEdit: false,
+        canDelete: false,
+        canCreate: false,
+        canManageRoles: false,
+        isViewOnly: true
+      },
+      channels: ['Client Channel'], // Very limited channel access
+      platforms: ['Instagram', 'TikTok', 'YouTube', 'Facebook', 'LinkedIn'], // Can view all platforms
+      editors: ['Mia', 'Leo', 'Kai'] // Can see all editors but not edit
+    }
+  },
+  
   defaultPlatforms: ['Instagram', 'TikTok', 'YouTube', 'Facebook', 'LinkedIn'],
   defaultEditors: ['Mia', 'Leo', 'Kai'],
   defaultChannels: ['Main Brand', 'Clips Channel', 'Client Channel'],
@@ -23,9 +86,12 @@ const CONFIG = {
   ]
 };
 
-// Enhanced Application State with better error handling
+// Enhanced Application State with Multi-User Support
 let appState = {
   isLoggedIn: false,
+  currentUser: null, // Current logged-in user object
+  currentRole: null, // Current user's role key (admin, mia, leo, client)
+  customRoles: {}, // Custom roles created by admin
   projects: [],
   trash: [],
   editors: [...CONFIG.defaultEditors],
@@ -36,7 +102,7 @@ let appState = {
   lastSaveTime: null
 };
 
-// Enhanced Utility Functions with better error handling
+// Enhanced Utility Functions with Multi-User Support and Channel Permissions
 const utils = {
   generateId: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
   
@@ -48,12 +114,99 @@ const utils = {
     }
   },
   
+  // HTML escaping for security
+  escapeHtml: (text) => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  },
+  
+  // User Permission Utilities
+  getCurrentUser: () => appState.currentUser,
+  getCurrentRole: () => appState.currentRole,
+  
+  // Channel Permission Checking (PRIMARY VALIDATION LAYER)
+  hasChannelAccess: (channel) => {
+    if (!appState.currentUser) return false;
+    return appState.currentUser.channels.includes(channel);
+  },
+  
+  getUserAccessibleChannels: () => {
+    if (!appState.currentUser) return [];
+    return appState.currentUser.channels;
+  },
+  
+  getUserAccessiblePlatforms: () => {
+    if (!appState.currentUser) return [];
+    return appState.currentUser.platforms;
+  },
+  
+  getUserAccessibleEditors: () => {
+    if (!appState.currentUser) return [];
+    return appState.currentUser.editors;
+  },
+  
+  // Permission checking utilities
+  canUserEdit: () => {
+    return appState.currentUser && appState.currentUser.permissions.canEdit;
+  },
+  
+  canUserDelete: () => {
+    return appState.currentUser && appState.currentUser.permissions.canDelete;
+  },
+  
+  canUserCreate: () => {
+    return appState.currentUser && appState.currentUser.permissions.canCreate;
+  },
+  
+  canUserManageRoles: () => {
+    return appState.currentUser && appState.currentUser.permissions.canManageRoles;
+  },
+  
+  isUserViewOnly: () => {
+    return appState.currentUser && appState.currentUser.permissions.isViewOnly;
+  },
+  
+  // Project channel validation (PRIMARY PROJECT FILTER)
+  canUserAccessProject: (project) => {
+    if (!project || !project.channel) return false;
+    return utils.hasChannelAccess(project.channel);
+  },
+  
+  // Get projects filtered by user's channel access
+  getAccessibleProjects: () => {
+    return appState.projects.filter(project => utils.canUserAccessProject(project));
+  },
+  
   daysBetween: (date1, date2) => {
     try {
       const diff = Math.abs(new Date(date2) - new Date(date1));
       return Math.ceil(diff / (1000 * 60 * 60 * 24));
     } catch (e) {
       return 0;
+    }
+  },
+  
+  // Custom role management
+  loadCustomRoles: () => {
+    try {
+      const customRoles = JSON.parse(localStorage.getItem(CONFIG.customRolesKey)) || {};
+      appState.customRoles = customRoles;
+      return true;
+    } catch (error) {
+      console.error('Failed to load custom roles:', error);
+      appState.customRoles = {};
+      return false;
+    }
+  },
+  
+  saveCustomRoles: () => {
+    try {
+      localStorage.setItem(CONFIG.customRolesKey, JSON.stringify(appState.customRoles));
+      return true;
+    } catch (error) {
+      console.error('Failed to save custom roles:', error);
+      return false;
     }
   },
   
@@ -66,7 +219,7 @@ const utils = {
         platforms: appState.platforms,
         channels: appState.channels,
         lastSaved: Date.now(),
-        version: '2.0'
+        version: '3.0' // Updated version for multi-user system
       };
       localStorage.setItem(CONFIG.storageKey, JSON.stringify(dataToSave));
       appState.lastSaveTime = Date.now();
@@ -138,7 +291,7 @@ const utils = {
 // Auto-save every 30 seconds
 setInterval(utils.autoSave, 30000);
 
-// Fixed Authentication Functions
+// Enhanced Multi-User Authentication Functions
 function checkPassword() {
   const passwordInput = document.getElementById('passwordInput');
   const errorEl = document.getElementById('loginError');
@@ -146,13 +299,42 @@ function checkPassword() {
   
   console.log('Checking password:', password); // Debug log
   
-  if (password === CONFIG.password) {
+  // Check against all defined roles (including custom roles)
+  const allRoles = { ...CONFIG.roles, ...appState.customRoles };
+  let authenticatedRole = null;
+  let authenticatedUser = null;
+  
+  // Check built-in roles
+  for (const [roleKey, roleData] of Object.entries(allRoles)) {
+    if (password === roleData.password) {
+      authenticatedRole = roleKey;
+      authenticatedUser = roleData;
+      break;
+    }
+  }
+  
+  // Legacy password support (maps to admin)
+  if (!authenticatedUser && password === CONFIG.password) {
+    authenticatedRole = 'admin';
+    authenticatedUser = CONFIG.roles.admin;
+  }
+  
+  if (authenticatedUser) {
+    // Set user state
     appState.isLoggedIn = true;
+    appState.currentRole = authenticatedRole;
+    appState.currentUser = authenticatedUser;
+    
+    // Hide login, show main app
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     errorEl.classList.add('hidden');
+    
+    // Initialize app with user context
     initializeApp();
-    console.log('Login successful');
+    
+    console.log('Login successful for user:', authenticatedUser.username);
+    showNotification(`Welcome back, ${authenticatedUser.username}!`, 'success');
   } else {
     errorEl.classList.remove('hidden');
     errorEl.textContent = 'Incorrect password. Please try again.';
@@ -174,7 +356,12 @@ function checkPassword() {
 function logout() {
   if (confirm('Are you sure you want to logout? Any unsaved changes will be saved automatically.')) {
     utils.saveToStorage(); // Save before logout
+    
+    // Clear user state
     appState.isLoggedIn = false;
+    appState.currentUser = null;
+    appState.currentRole = null;
+    
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('mainApp').classList.add('hidden');
     document.getElementById('passwordInput').value = '';
@@ -210,6 +397,10 @@ function showNotification(message, type = 'info') {
 function initializeApp() {
   try {
     console.log('Initializing app...');
+    
+    // Load custom roles first
+    utils.loadCustomRoles();
+    
     const loaded = utils.loadFromStorage();
     if (!loaded) {
       // Create sample data for new users
@@ -217,21 +408,89 @@ function initializeApp() {
     }
     
     setupEventListeners();
-    renderBoard();
-    utils.updateAllDropdowns();
-    updateStats();
+    renderBoard(); // This will now filter by user's channel access
+    utils.updateAllDropdowns(); // This will now filter by user's accessible options
+    updateStats(); // This will now show stats for user's accessible projects
+    updateUserInterface(); // New function to update UI based on user permissions
     
-    // Show welcome message
+    // Show welcome message with user-specific info
     setTimeout(() => {
-      const total = appState.projects.length;
-      showNotification(`Welcome! Loaded ${total} projects.`, 'success');
+      const accessibleProjects = utils.getAccessibleProjects();
+      const total = accessibleProjects.length;
+      const channelCount = utils.getUserAccessibleChannels().length;
+      showNotification(`Welcome ${appState.currentUser.username}! Access to ${channelCount} channels with ${total} projects.`, 'success');
     }, 1000);
     
-    console.log('App initialized successfully');
+    console.log('App initialized successfully for user:', appState.currentUser.username);
   } catch (error) {
     console.error('Error initializing app:', error);
-    showNotification('Error initializing app. Please refresh and try again.', 'error');
+    showNotification('Error initializing application. Please refresh and try again.', 'error');
   }
+}
+
+// Update UI based on user permissions and channel access
+function updateUserInterface() {
+  try {
+    // Update header with user info
+    updateHeaderUserInfo();
+    
+    // Show/hide buttons based on permissions
+    updatePermissionBasedUI();
+    
+    // Filter all dropdowns by user access
+    updateAccessBasedDropdowns();
+    
+  } catch (error) {
+    console.error('Error updating user interface:', error);
+  }
+}
+
+function updateHeaderUserInfo() {
+  // Update or add user info to header
+  let userInfo = document.getElementById('userInfo');
+  if (!userInfo) {
+    const header = document.querySelector('header .title');
+    if (header) {
+      userInfo = document.createElement('div');
+      userInfo.id = 'userInfo';
+      userInfo.className = 'user-info';
+      header.appendChild(userInfo);
+    }
+  }
+  
+  if (userInfo && appState.currentUser) {
+    userInfo.innerHTML = `
+      <span class="user-name">👤 ${utils.escapeHtml(appState.currentUser.username)}</span>
+      <span class="user-channels">📺 ${utils.getUserAccessibleChannels().join(', ')}</span>
+    `;
+  }
+}
+
+function updatePermissionBasedUI() {
+  // Update buttons based on permissions
+  const actionButtons = document.querySelectorAll('.btn');
+  actionButtons.forEach(button => {
+    const buttonText = button.textContent.toLowerCase();
+    
+    // Hide certain buttons for view-only users
+    if (utils.isUserViewOnly()) {
+      if (buttonText.includes('add') || buttonText.includes('manage') || 
+          buttonText.includes('import') || buttonText.includes('export')) {
+        button.style.display = 'none';
+      }
+    }
+  });
+  
+  // Show admin panel button only for admins
+  const adminPanelBtn = document.getElementById('adminPanelBtn');
+  if (adminPanelBtn) {
+    adminPanelBtn.style.display = utils.canUserManageRoles() ? 'inline-block' : 'none';
+  }
+}
+
+function updateAccessBasedDropdowns() {
+  // This will be called to filter dropdowns by user access
+  // Implementation will be added in the filter update functions
 }
 
 function createSampleData() {
@@ -429,6 +688,18 @@ function editProject(projectId) {
       return;
     }
     
+    // CHANNEL PERMISSION CHECK (PRIMARY SECURITY)
+    if (!utils.canUserAccessProject(project)) {
+      showNotification('You do not have access to this project channel', 'error');
+      return;
+    }
+    
+    // Additional permission check
+    if (!utils.canUserEdit()) {
+      showNotification('You do not have permission to edit projects', 'error');
+      return;
+    }
+    
     appState.editingProject = project;
     appState.currentChecklist = project.checklist ? [...project.checklist] : [];
     populateForm(project);
@@ -447,7 +718,21 @@ function deleteProject(projectId) {
     
     const projectIndex = appState.projects.findIndex(p => p.id === projectId);
     if (projectIndex !== -1) {
-      const project = appState.projects.splice(projectIndex, 1)[0];
+      const project = appState.projects[projectIndex];
+      
+      // CHANNEL PERMISSION CHECK (PRIMARY SECURITY)
+      if (!utils.canUserAccessProject(project)) {
+        showNotification('You do not have access to this project channel', 'error');
+        return;
+      }
+      
+      // Additional permission check
+      if (!utils.canUserDelete()) {
+        showNotification('You do not have permission to delete projects', 'error');
+        return;
+      }
+      
+      appState.projects.splice(projectIndex, 1);
       project.deletedAt = Date.now();
       appState.trash.push(project);
       
@@ -468,6 +753,18 @@ function duplicateProject(projectId) {
     const original = appState.projects.find(p => p.id === projectId);
     if (!original) {
       showNotification('Project not found', 'error');
+      return;
+    }
+    
+    // CHANNEL PERMISSION CHECK (PRIMARY SECURITY)
+    if (!utils.canUserAccessProject(original)) {
+      showNotification('You do not have access to this project channel', 'error');
+      return;
+    }
+    
+    // Additional permission check
+    if (!utils.canUserCreate()) {
+      showNotification('You do not have permission to create projects', 'error');
       return;
     }
     
@@ -597,10 +894,11 @@ function populateForm(project) {
 
 function updateFormSelects() {
   try {
+    // Use user-accessible data for form selects
     const selects = [
-      { id: 'projectEditor', data: appState.editors, placeholder: 'Select Editor' },
-      { id: 'projectPlatform', data: appState.platforms, placeholder: 'Select Platform' },
-      { id: 'projectChannel', data: appState.channels, placeholder: 'Select Channel' }
+      { id: 'projectEditor', data: utils.getUserAccessibleEditors(), placeholder: 'Select Editor' },
+      { id: 'projectPlatform', data: utils.getUserAccessiblePlatforms(), placeholder: 'Select Platform' },
+      { id: 'projectChannel', data: utils.getUserAccessibleChannels(), placeholder: 'Select Channel' }
     ];
     
     selects.forEach(({ id, data, placeholder }) => {
@@ -608,7 +906,7 @@ function updateFormSelects() {
       if (select) {
         const currentValue = select.value;
         select.innerHTML = `<option value="">${placeholder}</option>` +
-          data.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('');
+          data.map(item => `<option value="${utils.escapeHtml(item)}">${utils.escapeHtml(item)}</option>`).join('');
         if (currentValue && data.includes(currentValue)) {
           select.value = currentValue;
         }
@@ -681,6 +979,24 @@ function handleFormSubmit(e) {
       return;
     }
     
+    // CHANNEL PERMISSION VALIDATION (PRIMARY SECURITY CHECK)
+    if (formData.channel && !utils.hasChannelAccess(formData.channel)) {
+      showNotification('You do not have access to this channel', 'error');
+      document.getElementById('projectChannel').focus();
+      return;
+    }
+    
+    // Additional permission checks
+    if (appState.editingProject && !utils.canUserEdit()) {
+      showNotification('You do not have permission to edit projects', 'error');
+      return;
+    }
+    
+    if (!appState.editingProject && !utils.canUserCreate()) {
+      showNotification('You do not have permission to create projects', 'error');
+      return;
+    }
+    
     if (appState.editingProject) {
       // Update existing project
       Object.assign(appState.editingProject, formData);
@@ -739,7 +1055,7 @@ function updateListsFromForm(formData) {
 
 function closeModal() {
   try {
-    const modals = ['projectModal', 'manageModal', 'trashModal'];
+    const modals = ['projectModal', 'manageModal', 'trashModal', 'adminModal'];
     modals.forEach(modalId => {
       const modal = document.getElementById(modalId);
       if (modal) modal.classList.add('hidden');
@@ -838,8 +1154,11 @@ function renderBoard() {
     const platformFilter = document.getElementById('platformFilter')?.value || '';
     const channelFilter = document.getElementById('channelFilter')?.value || '';
     
-    // Filter projects
-    const filteredProjects = appState.projects.filter(project => {
+    // Start with user-accessible projects only (PRIMARY CHANNEL FILTER)
+    const accessibleProjects = utils.getAccessibleProjects();
+    
+    // Apply additional filters
+    const filteredProjects = accessibleProjects.filter(project => {
       const matchesSearch = !searchTerm || 
         project.title.toLowerCase().includes(searchTerm) ||
         (project.client || '').toLowerCase().includes(searchTerm);
@@ -865,9 +1184,9 @@ function renderBoard() {
         </div>
         <div class="drop-zone" data-stage="${stage.id}" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
           ${projectsByStage[stage.id].map(renderProjectCard).join('')}
-          <button class="btn secondary" onclick="addNewProject('${stage.id}')" style="margin-top: auto;">
+          ${utils.canUserCreate() ? `<button class="btn secondary" onclick="addNewProject('${stage.id}')" style="margin-top: auto;">
             + Add Project
-          </button>
+          </button>` : ''}
         </div>
       </div>
     `).join('');
@@ -910,9 +1229,9 @@ function renderProjectCard(project) {
         </div>
         ${totalTasks > 0 ? `<div class="checklist-progress">${completedTasks}/${totalTasks} tasks completed</div>` : ''}
         <div class="card-actions">
-          <button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>
-          <button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>
-          <button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>
+          ${utils.canUserEdit() ? `<button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>` : ''}
+          ${utils.canUserCreate() ? `<button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>` : ''}
+          ${utils.canUserDelete() ? `<button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>` : ''}
         </div>
       </div>
     `;
@@ -924,10 +1243,15 @@ function renderProjectCard(project) {
 
 function updateFilters() {
   try {
+    // Get user-accessible data for filters
+    const accessibleEditors = utils.getUserAccessibleEditors();
+    const accessiblePlatforms = utils.getUserAccessiblePlatforms();
+    const accessibleChannels = utils.getUserAccessibleChannels();
+    
     const filters = [
-      { id: 'editorFilter', data: appState.editors, label: 'All Editors' },
-      { id: 'platformFilter', data: appState.platforms, label: 'All Platforms' },
-      { id: 'channelFilter', data: appState.channels, label: 'All Channels' }
+      { id: 'editorFilter', data: accessibleEditors, label: 'All Editors' },
+      { id: 'platformFilter', data: accessiblePlatforms, label: 'All Platforms' },
+      { id: 'channelFilter', data: accessibleChannels, label: 'All Channels' }
     ];
     
     filters.forEach(({ id, data, label }) => {
@@ -935,7 +1259,7 @@ function updateFilters() {
       if (filter) {
         const currentValue = filter.value;
         filter.innerHTML = `<option value="">${label}</option>` +
-          data.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('');
+          data.map(item => `<option value="${utils.escapeHtml(item)}">${utils.escapeHtml(item)}</option>`).join('');
         if (currentValue && data.includes(currentValue)) {
           filter.value = currentValue;
         }
@@ -948,11 +1272,13 @@ function updateFilters() {
 
 function updateStats() {
   try {
-    const total = appState.projects.length;
-    const completed = appState.projects.filter(p => p.stage === 'posted').length;
+    // Use only user-accessible projects for stats
+    const accessibleProjects = utils.getAccessibleProjects();
+    const total = accessibleProjects.length;
+    const completed = accessibleProjects.filter(p => p.stage === 'posted').length;
     
-    // Calculate average cycle time
-    const completedProjects = appState.projects.filter(p => 
+    // Calculate average cycle time using accessible projects only
+    const completedProjects = accessibleProjects.filter(p => 
       p.stage === 'posted' && p.timeline && p.timeline.uploaded && p.timeline.posted
     );
     
@@ -1371,6 +1697,205 @@ function emptyTrash() {
   } catch (error) {
     console.error('Error emptying trash:', error);
     showNotification('Error emptying trash', 'error');
+  }
+}
+
+// Admin Panel Functions (Channel-Based Role Management)
+function openAdminPanel() {
+  if (!utils.canUserManageRoles()) {
+    showNotification('You do not have permission to manage roles', 'error');
+    return;
+  }
+  
+  try {
+    renderAdminPanel();
+    document.getElementById('adminModal').classList.remove('hidden');
+  } catch (error) {
+    console.error('Error opening admin panel:', error);
+    showNotification('Error opening admin panel', 'error');
+  }
+}
+
+function renderAdminPanel() {
+  // Render built-in roles
+  const builtinRolesList = document.getElementById('builtinRolesList');
+  if (builtinRolesList) {
+    builtinRolesList.innerHTML = Object.entries(CONFIG.roles).map(([roleKey, roleData]) => `
+      <div class="role-item builtin-role">
+        <div class="role-info">
+          <h5>${utils.escapeHtml(roleData.username)} (${roleKey})</h5>
+          <div class="role-details">
+            <div class="role-channels"><strong>Channels:</strong> ${roleData.channels.join(', ')}</div>
+            <div class="role-platforms"><strong>Platforms:</strong> ${roleData.platforms.join(', ')}</div>
+            <div class="role-permissions">
+              <strong>Permissions:</strong> 
+              ${roleData.permissions.canEdit ? 'Edit' : ''} 
+              ${roleData.permissions.canCreate ? 'Create' : ''} 
+              ${roleData.permissions.canDelete ? 'Delete' : ''} 
+              ${roleData.permissions.isViewOnly ? 'View-Only' : ''}
+              ${roleData.permissions.canManageRoles ? 'Admin' : ''}
+            </div>
+          </div>
+        </div>
+        <span class="role-type">Built-in</span>
+      </div>
+    `).join('');
+  }
+  
+  // Render custom roles
+  const customRolesList = document.getElementById('customRolesList');
+  if (customRolesList) {
+    const customRoleEntries = Object.entries(appState.customRoles);
+    if (customRoleEntries.length === 0) {
+      customRolesList.innerHTML = '<p class="empty-state">No custom roles created</p>';
+    } else {
+      customRolesList.innerHTML = customRoleEntries.map(([roleKey, roleData]) => `
+        <div class="role-item custom-role">
+          <div class="role-info">
+            <h5>${utils.escapeHtml(roleData.username)} (${roleKey})</h5>
+            <div class="role-details">
+              <div class="role-channels"><strong>Channels:</strong> ${roleData.channels.join(', ')}</div>
+              <div class="role-platforms"><strong>Platforms:</strong> ${roleData.platforms.join(', ')}</div>
+              <div class="role-permissions">
+                <strong>Permissions:</strong> 
+                ${roleData.permissions.canEdit ? 'Edit' : ''} 
+                ${roleData.permissions.canCreate ? 'Create' : ''} 
+                ${roleData.permissions.canDelete ? 'Delete' : ''} 
+                ${roleData.permissions.isViewOnly ? 'View-Only' : ''}
+              </div>
+            </div>
+          </div>
+          <button class="btn warning btn-sm" onclick="deleteCustomRole('${roleKey}')">Delete</button>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // Render access checkboxes
+  renderAccessCheckboxes();
+}
+
+function renderAccessCheckboxes() {
+  // Channel checkboxes
+  const channelCheckboxes = document.getElementById('channelCheckboxes');
+  if (channelCheckboxes) {
+    channelCheckboxes.innerHTML = appState.channels.map(channel => `
+      <label>
+        <input type="checkbox" name="channels" value="${utils.escapeHtml(channel)}" checked>
+        ${utils.escapeHtml(channel)}
+      </label>
+    `).join('');
+  }
+  
+  // Platform checkboxes
+  const platformCheckboxes = document.getElementById('platformCheckboxes');
+  if (platformCheckboxes) {
+    platformCheckboxes.innerHTML = appState.platforms.map(platform => `
+      <label>
+        <input type="checkbox" name="platforms" value="${utils.escapeHtml(platform)}" checked>
+        ${utils.escapeHtml(platform)}
+      </label>
+    `).join('');
+  }
+  
+  // Editor checkboxes
+  const editorCheckboxes = document.getElementById('editorCheckboxes');
+  if (editorCheckboxes) {
+    editorCheckboxes.innerHTML = appState.editors.map(editor => `
+      <label>
+        <input type="checkbox" name="editors" value="${utils.escapeHtml(editor)}" checked>
+        ${utils.escapeHtml(editor)}
+      </label>
+    `).join('');
+  }
+}
+
+function createCustomRole() {
+  try {
+    const roleName = document.getElementById('newRoleName')?.value.trim();
+    const password = document.getElementById('newRolePassword')?.value.trim();
+    
+    if (!roleName || !password) {
+      showNotification('Please enter both role name and password', 'error');
+      return;
+    }
+    
+    // Check if role already exists
+    const roleKey = roleName.toLowerCase().replace(/\s+/g, '');
+    if (CONFIG.roles[roleKey] || appState.customRoles[roleKey]) {
+      showNotification('Role already exists', 'error');
+      return;
+    }
+    
+    // Get selected permissions
+    const permissions = {
+      canEdit: document.getElementById('newRoleCanEdit')?.checked || false,
+      canDelete: document.getElementById('newRoleCanDelete')?.checked || false,
+      canCreate: document.getElementById('newRoleCanCreate')?.checked || false,
+      canManageRoles: false, // Only built-in admin can manage roles
+      isViewOnly: document.getElementById('newRoleViewOnly')?.checked || false
+    };
+    
+    // Get selected channels
+    const selectedChannels = Array.from(document.querySelectorAll('input[name="channels"]:checked'))
+      .map(cb => cb.value);
+    
+    if (selectedChannels.length === 0) {
+      showNotification('Please select at least one channel', 'error');
+      return;
+    }
+    
+    // Get selected platforms
+    const selectedPlatforms = Array.from(document.querySelectorAll('input[name="platforms"]:checked'))
+      .map(cb => cb.value);
+    
+    // Get selected editors
+    const selectedEditors = Array.from(document.querySelectorAll('input[name="editors"]:checked'))
+      .map(cb => cb.value);
+    
+    // Create the new role
+    const newRole = {
+      username: roleName,
+      password: password,
+      permissions: permissions,
+      channels: selectedChannels,
+      platforms: selectedPlatforms.length > 0 ? selectedPlatforms : [...appState.platforms],
+      editors: selectedEditors.length > 0 ? selectedEditors : [...appState.editors]
+    };
+    
+    // Save the custom role
+    appState.customRoles[roleKey] = newRole;
+    if (utils.saveCustomRoles()) {
+      showNotification(`Custom role "${roleName}" created successfully`, 'success');
+      renderAdminPanel(); // Refresh the panel
+      
+      // Clear form
+      document.getElementById('newRoleName').value = '';
+      document.getElementById('newRolePassword').value = '';
+    } else {
+      showNotification('Error saving custom role', 'error');
+    }
+    
+  } catch (error) {
+    console.error('Error creating custom role:', error);
+    showNotification('Error creating custom role', 'error');
+  }
+}
+
+function deleteCustomRole(roleKey) {
+  if (confirm(`Delete custom role "${roleKey}"? This cannot be undone.`)) {
+    try {
+      delete appState.customRoles[roleKey];
+      if (utils.saveCustomRoles()) {
+        showNotification(`Custom role "${roleKey}" deleted successfully`, 'success');
+        renderAdminPanel(); // Refresh the panel
+      } else {
+        showNotification('Error deleting custom role', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting custom role:', error);
+      showNotification('Error deleting custom role', 'error');
+    }
   }
 }
 
