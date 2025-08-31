@@ -259,6 +259,54 @@ header {
   padding: 20px 0;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.role-indicator {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(124, 58, 237, 0.2));
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
+}
+
+.role-indicator.admin {
+  border-color: var(--success);
+  color: var(--success);
+  background: linear-gradient(135deg, rgba(0, 255, 163, 0.2), rgba(16, 185, 129, 0.2));
+  box-shadow: 0 4px 16px rgba(0, 255, 163, 0.2);
+}
+
+.role-indicator.editor {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.2), rgba(251, 146, 60, 0.2));
+  box-shadow: 0 4px 16px rgba(255, 107, 53, 0.2);
+}
+
+.role-indicator.client {
+  border-color: var(--purple);
+  color: var(--purple);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(139, 92, 246, 0.2));
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.2);
+}
+
+.role-indicator.viewer {
+  border-color: var(--muted);
+  color: var(--muted);
+  background: linear-gradient(135deg, rgba(124, 156, 191, 0.2), rgba(148, 163, 184, 0.2));
+  box-shadow: 0 4px 16px rgba(124, 156, 191, 0.2);
+}
+
 .title h1 {
   margin: 0;
   font-size: 32px;
