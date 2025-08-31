@@ -355,7 +355,7 @@ function updateUIForRole() {
   if (importBtn) importBtn.style.display = canManage ? 'inline-block' : 'none';
   if (trashBtn) trashBtn.style.display = canManage ? 'inline-block' : 'none';
   
-  // Hide add project buttons for non-editors
+  // Hide add project buttons for read-only roles (client, viewer)
   addProjectBtns.forEach(btn => {
     if (btn) btn.style.display = canEdit ? 'inline-block' : 'none';
   });
@@ -1025,9 +1025,11 @@ function renderBoard() {
         </div>
         <div class="drop-zone" data-stage="${stage.id}" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
           ${projectsByStage[stage.id].map(renderProjectCard).join('')}
+          ${rbac.hasPermission('all') || rbac.hasPermission('edit_assigned_projects') ? `
           <button class="btn secondary" onclick="addNewProject('${stage.id}')" style="margin-top: auto;">
             + Add Project
           </button>
+          ` : ''}
         </div>
       </div>
     `).join('');
@@ -1069,11 +1071,13 @@ function renderProjectCard(project) {
           <div class="progress-bar" style="width: ${progress}%"></div>
         </div>
         ${totalTasks > 0 ? `<div class="checklist-progress">${completedTasks}/${totalTasks} tasks completed</div>` : ''}
+        ${rbac.hasPermission('all') || rbac.hasPermission('edit_assigned_projects') || rbac.hasPermission('view_assigned_projects') ? `
         <div class="card-actions">
           ${rbac.canEditProject(project) ? `<button class="icon-btn" onclick="editProject('${project.id}')" title="Edit">✏️</button>` : ''}
           ${rbac.hasPermission('all') ? `<button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate">📋</button>` : ''}
           ${rbac.hasPermission('all') ? `<button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete">🗑️</button>` : ''}
         </div>
+        ` : ''}
       </div>
     `;
   } catch (error) {
@@ -1294,8 +1298,17 @@ function renderManagementLists() {
                 <div class="user-info">
                   <span class="manage-item-text">${escapeHtml(user.username)}</span>
                   <span class="user-role role-${user.role}">${CONFIG.roles[user.role]?.name || user.role}</span>
+                  ${user.role !== 'admin' && user.role !== 'viewer' ? `
+                    <div class="user-assignments">
+                      ${user.role === 'editor' ? `Editors: ${user.assignedEditors.join(', ') || 'None'}` : ''}
+                      ${user.role === 'client' ? `Channels: ${user.assignedChannels.join(', ') || 'None'} | Clients: ${user.assignedClients.join(', ') || 'None'}` : ''}
+                    </div>
+                  ` : ''}
                 </div>
-                ${user.id !== 'admin' ? `<button class="btn-remove" onclick="removeUser('${user.id}')" title="Remove ${escapeHtml(user.username)}">×</button>` : ''}
+                <div class="user-actions">
+                  ${user.role !== 'admin' && user.role !== 'viewer' ? `<button class="btn-edit" onclick="editUserAssignments('${user.id}')" title="Edit assignments">⚙️</button>` : ''}
+                  ${user.id !== 'admin' ? `<button class="btn-remove" onclick="removeUser('${user.id}')" title="Remove ${escapeHtml(user.username)}">×</button>` : ''}
+                </div>
               </div>
             `).join('')}
           </div>
@@ -1533,6 +1546,46 @@ function removeUser(userId) {
     renderManagementLists();
     showNotification(`User "${user.username}" removed successfully`, 'success');
   }
+}
+
+function editUserAssignments(userId) {
+  if (!rbac.hasPermission('all')) {
+    showNotification('Access denied: Admin permissions required', 'error');
+    return;
+  }
+  
+  const user = appState.users.find(u => u.id === userId);
+  if (!user) return;
+  
+  if (user.role === 'admin') {
+    showNotification('Admin users do not require assignments', 'info');
+    return;
+  }
+  
+  let assignmentText = '';
+  if (user.role === 'editor') {
+    assignmentText = `Current assigned editors: ${user.assignedEditors.join(', ') || 'None'}\n\nEnter editors this user can manage (comma-separated):`;
+    const assignments = prompt(assignmentText, user.assignedEditors.join(', '));
+    if (assignments !== null) {
+      user.assignedEditors = assignments.split(',').map(s => s.trim()).filter(s => s);
+    }
+  } else if (user.role === 'client') {
+    assignmentText = `Current assigned channels: ${user.assignedChannels.join(', ') || 'None'}\nCurrent assigned clients: ${user.assignedClients.join(', ') || 'None'}\n\nEnter channels this user can view (comma-separated):`;
+    const channels = prompt(assignmentText, user.assignedChannels.join(', '));
+    if (channels !== null) {
+      user.assignedChannels = channels.split(',').map(s => s.trim()).filter(s => s);
+      
+      const clientText = `Enter client names this user can view (comma-separated):`;
+      const clients = prompt(clientText, user.assignedClients.join(', '));
+      if (clients !== null) {
+        user.assignedClients = clients.split(',').map(s => s.trim()).filter(s => s);
+      }
+    }
+  }
+  
+  utils.saveToStorage();
+  renderManagementLists();
+  showNotification(`Assignments updated for ${user.username}`, 'success');
 }
 
 // Trash Management
