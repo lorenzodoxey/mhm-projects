@@ -278,6 +278,30 @@ header {
   opacity: 0.9;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.role-indicator {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(124, 58, 237, 0.1));
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+}
+
+.role-indicator.hidden {
+  display: none;
+}
+
 /* Futuristic Panels */
 .panel {
   background: linear-gradient(145deg, rgba(22, 22, 41, 0.7), rgba(26, 11, 46, 0.7));
