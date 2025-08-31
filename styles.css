@@ -1290,3 +1290,179 @@ header {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Header Enhancements for Multi-User */
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.user-info {
+  margin-top: 8px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.user-name {
+  color: var(--primary);
+  font-weight: 600;
+  margin-right: 15px;
+}
+
+.user-channels {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Admin Panel Styles */
+.admin-modal {
+  width: min(1000px, 95vw);
+  max-height: 95vh;
+}
+
+.admin-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  border: 1px solid var(--border);
+}
+
+.admin-section h4 {
+  color: var(--primary);
+  font-size: 18px;
+  margin-bottom: 15px;
+  text-shadow: 0 0 10px var(--glow);
+}
+
+.admin-section h5 {
+  color: var(--accent);
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.roles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.role-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.role-item.builtin-role {
+  border-left: 4px solid var(--primary);
+}
+
+.role-item.custom-role {
+  border-left: 4px solid var(--accent);
+}
+
+.role-info h5 {
+  margin: 0 0 8px 0;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.role-details {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.role-details > div {
+  margin-bottom: 4px;
+}
+
+.role-type {
+  background: var(--primary);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.role-form {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.permissions-section,
+.access-section {
+  margin-top: 20px;
+}
+
+.permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.permissions-grid label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.permissions-grid input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+.access-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.access-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.access-checkboxes label:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.access-checkboxes input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 20px;
+}
